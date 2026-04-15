@@ -1,4 +1,4 @@
-import { chromium, type Page } from "playwright";
+import { chromium, type BrowserContext, type Page } from "playwright";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
@@ -13,6 +13,133 @@ export interface RecordingResult {
 export interface RecordOptions {
   baseUrl: string;
   config?: PrdemoConfig | null;
+}
+
+async function installInBrowserFrame(
+  context: BrowserContext,
+  frame?: PrdemoConfig["frame"]
+): Promise<void> {
+  if (!frame?.enabled || !frame.inBrowser) return;
+
+  const margin = Math.max(50, Math.round(frame.margin ?? 50));
+  const inset = Math.max(25, Math.round(frame.contentInset ?? 25));
+  const barHeight = Math.max(36, Math.round(frame.barHeight ?? 44));
+  let bgDataUrl: string | null = null;
+  if (frame.backgroundImage && fs.existsSync(frame.backgroundImage)) {
+    const ext = path.extname(frame.backgroundImage).toLowerCase();
+    const mime = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
+    const buf = fs.readFileSync(frame.backgroundImage);
+    bgDataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+  }
+
+  await context.addInitScript(
+    ({ marginPx, insetPx, barHeightPx, backgroundImageUrl }) => {
+      const apply = () => {
+        if (document.getElementById("__prdemo_frame_style")) return;
+
+        const style = document.createElement("style");
+        style.id = "__prdemo_frame_style";
+        style.textContent = `
+          html {
+            background: ${
+              backgroundImageUrl
+                ? `url('${backgroundImageUrl}') center/cover no-repeat`
+                : "radial-gradient(1200px 700px at 15% 20%, #6d28d9 0%, #1f1140 45%, #0f172a 100%)"
+            } !important;
+            margin: 0 !important;
+            min-height: 100% !important;
+          }
+          body {
+            background: #ffffff !important;
+            background-clip: content-box !important;
+            margin: 0 !important;
+            min-height: 100% !important;
+          }
+          body {
+            box-sizing: border-box !important;
+            padding: ${marginPx + barHeightPx}px ${marginPx}px ${marginPx}px !important;
+            min-height: 100vh !important;
+            overflow: hidden !important;
+          }
+          /* Force app content to occupy the full framed viewport area */
+          body > :not(#__prdemo_frame_overlay):not(script):not(style) {
+            width: calc(100vw - ${marginPx * 2}px) !important;
+            max-width: none !important;
+            min-height: calc(100vh - ${marginPx * 2 + barHeightPx}px) !important;
+            margin: 0 !important;
+          }
+          #__next, #root, main, [data-nextjs-scroll-focus-boundary] {
+            width: 100% !important;
+            max-width: none !important;
+            min-height: calc(100vh - ${marginPx * 2 + barHeightPx}px) !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+          }
+          #__prdemo_frame_overlay {
+            position: fixed;
+            inset: ${marginPx}px;
+            border: 2px solid #334155;
+            background: transparent;
+            border-radius: 10px;
+            z-index: 2147483646;
+            pointer-events: none;
+            overflow: hidden;
+          }
+          #__prdemo_frame_overlay .bar {
+            height: ${barHeightPx}px;
+            border-bottom: 1px solid #334155;
+            background: #0f172a;
+            position: relative;
+          }
+          #__prdemo_frame_overlay .dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            top: ${Math.round((barHeightPx - 11) / 2)}px;
+            position: absolute;
+          }
+          #__prdemo_frame_overlay .dot.red { left: 14px; background: #ff5f57; }
+          #__prdemo_frame_overlay .dot.yellow { left: 31px; background: #ffbd2e; }
+          #__prdemo_frame_overlay .dot.green { left: 48px; background: #28c840; }
+          #__prdemo_frame_overlay .address {
+            position: absolute;
+            left: 120px;
+            right: 16px;
+            top: ${Math.round((barHeightPx - 16) / 2)}px;
+            height: 16px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: #243244;
+          }
+        `;
+        document.head.appendChild(style);
+
+        const overlay = document.createElement("div");
+        overlay.id = "__prdemo_frame_overlay";
+        overlay.innerHTML = `
+          <div class="bar">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+            <div class="address"></div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+      };
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", apply, { once: true });
+      } else {
+        apply();
+      }
+    },
+    {
+      marginPx: margin,
+      insetPx: inset,
+      barHeightPx: barHeight,
+      backgroundImageUrl: bgDataUrl,
+    }
+  );
 }
 
 export async function recordDemo(
@@ -39,6 +166,7 @@ export async function recordDemo(
     recordVideo: { dir: tmpDir, size: { width: vw, height: vh } },
     viewport: { width: vw, height: vh },
   });
+  await installInBrowserFrame(context, config?.frame);
 
   const page = await context.newPage();
 

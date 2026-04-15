@@ -54,6 +54,15 @@ output: demo.mp4                      # Output file path
 model: google/gemini-flash-1.5        # Override LLM model
 env: [.env.local]                     # Extra env files to load
 
+# Optional browser-style framing
+frame:
+  enabled: true
+  inBrowser: true                     # fastest path; injects frame into page during recording
+  margin: 50
+  contentInset: 25
+  barHeight: 44
+  backgroundImage: foo.jpg            # used only for post-process frame mode
+
 viewport:
   width: 1280
   height: 720
@@ -113,6 +122,8 @@ prdemo run [options]
   -p, --port <number>         Port override
   -s, --start-cmd <cmd>       Start command override
   -o, --output <path>         Output MP4 path
+  --frame                     Wrap output with browser-style frame
+  --frame-in-browser          Render frame in browser while recording (faster)
   --post                      Post video + GIF preview to GitHub PR
 ```
 

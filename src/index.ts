@@ -111,6 +111,8 @@ program
   .option("-p, --port <number>", "Dev server port (overrides config)")
   .option("-s, --start-cmd <cmd>", "Start command (overrides config)")
   .option("-o, --output <path>", "Output MP4 path (overrides config)")
+  .option("--frame", "Wrap output with browser-style frame")
+  .option("--frame-in-browser", "Render frame in browser while recording (faster)")
   .option("--post", "Post the video as a GitHub PR comment")
   .action(async (opts) => {
     const projectDir = path.resolve(opts.projectDir);
@@ -203,6 +205,22 @@ program
           ...config,
           demo: { ...config.demo, script: inferredSteps },
         };
+      }
+
+      // Render frame in-browser during recording (fast path).
+      if (opts.frame || opts.frameInBrowser || effectiveConfig?.frame?.enabled) {
+        effectiveConfig = {
+          ...(effectiveConfig || {}),
+          frame: {
+            ...(effectiveConfig?.frame || {}),
+            enabled: true,
+            inBrowser: true,
+            backgroundImage: path.resolve(
+              projectDir,
+              effectiveConfig?.frame?.backgroundImage || "foo.jpg"
+            ),
+          },
+        } as PrdemoConfig;
       }
 
       // Step 3: Record browser demo

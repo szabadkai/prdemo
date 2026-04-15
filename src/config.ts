@@ -33,6 +33,23 @@ const AuthFlowSchema = z.object({
   steps: z.array(DemoStepSchema),
 });
 
+const FrameSchema = z.object({
+  /** Enable browser-style framing */
+  enabled: z.boolean().default(false),
+  /** Render frame in-browser during recording for speed */
+  inBrowser: z.boolean().default(false),
+  /** Use fast post-processing path when framing in ffmpeg */
+  fast: z.boolean().default(true),
+  /** Outer margin around browser window */
+  margin: z.number().default(50),
+  /** Inner padding between window chrome and app content */
+  contentInset: z.number().default(25),
+  /** Browser top bar height */
+  barHeight: z.number().default(44),
+  /** Background image path (relative to project dir) */
+  backgroundImage: z.string().default("foo.jpg"),
+});
+
 const ConfigSchema = z.object({
   /** Command to start the dev server (default: "npm run dev") */
   start: z.string().default("npm run dev"),
@@ -40,6 +57,8 @@ const ConfigSchema = z.object({
   ready: z.string().default("http://localhost:3000"),
   /** Setup command run before starting (e.g. "npm install") */
   setup: z.string().optional(),
+  /** Optional browser-style framing */
+  frame: FrameSchema.optional(),
   /** Auth flow — run before demo to log in */
   auth: AuthFlowSchema.optional(),
   /** Demo script steps. If omitted, a basic auto-explore is used. */
