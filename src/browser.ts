@@ -1,17 +1,26 @@
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import type { EventLogEntry } from "./types.js";
+import type { DemoStep, PrdemoConfig } from "./config.js";
 
 export interface RecordingResult {
   videoPath: string;
   eventLog: EventLogEntry[];
 }
 
+export interface RecordOptions {
+  baseUrl: string;
+  config?: PrdemoConfig | null;
+}
+
 export async function recordDemo(
-  baseUrl: string
+  opts: RecordOptions
 ): Promise<RecordingResult> {
+  const { baseUrl, config } = opts;
+  const vw = config?.viewport?.width ?? 1280;
+  const vh = config?.viewport?.height ?? 720;
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "prdemo-video-"));
   const eventLog: EventLogEntry[] = [];
   const startTime = Date.now();
@@ -27,71 +36,35 @@ export async function recordDemo(
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    recordVideo: { dir: tmpDir, size: { width: 1280, height: 720 } },
-    viewport: { width: 1280, height: 720 },
+    recordVideo: { dir: tmpDir, size: { width: vw, height: vh } },
+    viewport: { width: vw, height: vh },
   });
 
   const page = await context.newPage();
 
-  // --- Hardcoded demo script (v0) ---
-  log("navigate", undefined, baseUrl);
-  await page.goto(baseUrl);
-  await page.waitForLoadState("networkidle");
-  log("page_loaded", undefined, await page.title());
-
-  // Pause to let the viewer take in the initial state
-  await page.waitForTimeout(4000);
-
-  // Click on list items if they exist (task completion demo)
-  const listItems = await page.locator("li").all();
-  if (listItems.length > 0) {
-    // Click first item
-    const firstText = await listItems[0].textContent();
-    log("click", "li:nth-child(1)", firstText?.trim());
-    await listItems[0].click();
-    await page.waitForTimeout(3000);
-
-    // Click second item
-    if (listItems.length > 1) {
-      const secondText = await listItems[1].textContent();
-      log("click", "li:nth-child(2)", secondText?.trim());
-      await listItems[1].click();
-      await page.waitForTimeout(3000);
-    }
-
-    // Undo first item
-    log("click", "li:nth-child(1)", "toggle back");
-    await listItems[0].click();
-    await page.waitForTimeout(3000);
-  }
-
-  // Navigate to another page if a link exists
-  const links = await page.locator("a").all();
-  if (links.length > 0) {
-    const firstLink = links[0];
-    const linkText = await firstLink.textContent();
-    log("click", "a:first", linkText?.trim());
-    await firstLink.click();
+  // --- Auth flow (if configured) ---
+  if (config?.auth) {
+    log("auth_start");
+    await page.goto(config.auth.url);
     await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(4000);
-    log("navigated", undefined, await page.title());
+    await executeSteps(page, config.auth.steps, log);
+    log("auth_complete");
   }
 
-  // Scroll down to show more content
-  await page.evaluate(() => window.scrollBy(0, 400));
-  log("scroll", undefined, "down 400px");
-  await page.waitForTimeout(3000);
-
-  // Scroll back up
-  await page.evaluate(() => window.scrollTo(0, 0));
-  log("scroll", undefined, "top");
-  await page.waitForTimeout(2000);
-
-  // Navigate back
-  await page.goBack();
-  await page.waitForLoadState("networkidle");
-  log("navigated_back", undefined, await page.title());
-  await page.waitForTimeout(4000);
+  // --- Demo script ---
+  const steps = config?.demo?.script;
+  const tolerant = !!config?.demo?.infer;
+  if (steps && steps.length > 0) {
+    // Config-driven demo
+    log("navigate", undefined, baseUrl);
+    await page.goto(baseUrl);
+    await page.waitForLoadState("networkidle");
+    log("page_loaded", undefined, await page.title());
+    await executeSteps(page, steps, log, tolerant);
+  } else {
+    // Fallback: auto-explore (v0 behavior)
+    await autoExplore(page, baseUrl, log);
+  }
 
   log("demo_complete");
 
@@ -109,4 +82,151 @@ export async function recordDemo(
     videoPath: path.join(tmpDir, files[0]),
     eventLog,
   };
+}
+
+// ---------- Step executor ----------
+
+type LogFn = (action: string, selector?: string, text?: string) => void;
+
+async function executeSteps(
+  page: Page,
+  steps: DemoStep[],
+  log: LogFn,
+  tolerant = false
+): Promise<void> {
+  // In tolerant mode (inferred scripts), use a shorter timeout so bad selectors
+  // don't stall the whole recording, and skip steps that fail.
+  const actionTimeout = tolerant ? 5000 : 30000;
+
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    try {
+      switch (step.action) {
+        case "navigate": {
+          const target = step.value || "/";
+          const url = target.startsWith("http")
+            ? target
+            : new URL(target, page.url()).href;
+          log("navigate", undefined, url);
+          await page.goto(url, { timeout: actionTimeout });
+          await page.waitForLoadState("networkidle").catch(() => {});
+          break;
+        }
+        case "click": {
+          if (!step.selector) break;
+          const el = page.locator(step.selector).first();
+          const text = await el.textContent({ timeout: actionTimeout }).catch(() => null);
+          log("click", step.selector, text?.trim());
+          await el.click({ timeout: actionTimeout });
+          break;
+        }
+        case "type": {
+          if (!step.selector || !step.value) break;
+          log("type", step.selector, step.value);
+          await page.locator(step.selector).first().fill(step.value, { timeout: actionTimeout });
+          break;
+        }
+        case "scroll": {
+          const dir = step.scroll || step.value || "down 400";
+          if (dir === "top") {
+            await page.evaluate(() => window.scrollTo(0, 0));
+          } else {
+            const match = dir.match(/down\s+(\d+)/);
+            const px = match ? parseInt(match[1], 10) : 400;
+            await page.evaluate((y) => window.scrollBy(0, y), px);
+          }
+          log("scroll", undefined, dir);
+          break;
+        }
+        case "wait": {
+          break;
+        }
+        case "screenshot": {
+          log("screenshot", undefined, step.value);
+          break;
+        }
+        case "go_back": {
+          await page.goBack({ timeout: actionTimeout });
+          await page.waitForLoadState("networkidle").catch(() => {});
+          log("go_back", undefined, await page.title());
+          break;
+        }
+      }
+    } catch (err) {
+      if (tolerant) {
+        log("step_skipped", step.selector, `Step ${i + 1} failed: ${(err as Error).message?.split("\n")[0]}`);
+        continue;
+      }
+      throw err;
+    }
+
+    if (step.narrate) {
+      log("narrate", step.selector, step.narrate);
+    }
+
+    const delay = step.delay ?? 3000;
+    if (delay > 0) {
+      await page.waitForTimeout(delay);
+    }
+  }
+}
+
+// ---------- Auto-explore fallback (v0 behavior) ----------
+
+async function autoExplore(
+  page: Page,
+  baseUrl: string,
+  log: LogFn
+): Promise<void> {
+  log("navigate", undefined, baseUrl);
+  await page.goto(baseUrl);
+  await page.waitForLoadState("networkidle");
+  log("page_loaded", undefined, await page.title());
+
+  await page.waitForTimeout(6000);
+
+  // Click on list items if they exist
+  const listItems = await page.locator("li").all();
+  if (listItems.length > 0) {
+    const firstText = await listItems[0].textContent();
+    log("click", "li:nth-child(1)", firstText?.trim());
+    await listItems[0].click();
+    await page.waitForTimeout(5000);
+
+    if (listItems.length > 1) {
+      const secondText = await listItems[1].textContent();
+      log("click", "li:nth-child(2)", secondText?.trim());
+      await listItems[1].click();
+      await page.waitForTimeout(5000);
+    }
+
+    log("click", "li:nth-child(1)", "toggle back");
+    await listItems[0].click();
+    await page.waitForTimeout(5000);
+  }
+
+  // Navigate via link if available
+  const links = await page.locator("a").all();
+  if (links.length > 0) {
+    const firstLink = links[0];
+    const linkText = await firstLink.textContent();
+    log("click", "a:first", linkText?.trim());
+    await firstLink.click();
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(6000);
+    log("navigated", undefined, await page.title());
+  }
+
+  await page.evaluate(() => window.scrollBy(0, 400));
+  log("scroll", undefined, "down 400px");
+  await page.waitForTimeout(4000);
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  log("scroll", undefined, "top");
+  await page.waitForTimeout(3000);
+
+  await page.goBack();
+  await page.waitForLoadState("networkidle");
+  log("navigated_back", undefined, await page.title());
+  await page.waitForTimeout(6000);
 }

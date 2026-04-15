@@ -70,3 +70,47 @@ export function muxVideo(
 
   return outputPath;
 }
+
+/**
+ * Generate an animated GIF preview from an MP4.
+ * Downscales to 480px wide, 10fps, capped at ~15s for size.
+ * Uses a two-pass palette approach for better quality.
+ */
+export function generateGif(
+  videoPath: string,
+  outputPath: string,
+  opts: { maxWidth?: number; fps?: number; maxDurationSec?: number } = {}
+): string {
+  const maxWidth = opts.maxWidth ?? 480;
+  const fps = opts.fps ?? 10;
+  const maxDur = opts.maxDurationSec ?? 15;
+
+  const palettePath = outputPath.replace(/\.gif$/, "-palette.png");
+
+  const filters = `fps=${fps},scale=${maxWidth}:-1:flags=lanczos`;
+
+  // Pass 1: generate palette
+  execFileSync(ffmpegBin, [
+    "-t", String(maxDur),
+    "-i", videoPath,
+    "-vf", `${filters},palettegen=stats_mode=diff`,
+    "-y", palettePath,
+  ], { stdio: "pipe" });
+
+  // Pass 2: generate GIF using palette
+  execFileSync(ffmpegBin, [
+    "-t", String(maxDur),
+    "-i", videoPath,
+    "-i", palettePath,
+    "-lavfi", `${filters} [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`,
+    "-y", outputPath,
+  ], { stdio: "pipe" });
+
+  // Clean up palette
+  try {
+    const { unlinkSync } = require("node:fs");
+    unlinkSync(palettePath);
+  } catch { /* ignore */ }
+
+  return outputPath;
+}

@@ -4,4 +4,8 @@ dist/
 *.mp4
 *.webm
 *.wav
+*.gif
 tmp/
+bench/results.json
+prdemo-output-palette.png
+test-app/

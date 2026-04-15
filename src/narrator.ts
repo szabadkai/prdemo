@@ -19,6 +19,8 @@ Your inputs are:
 2. The git diff — ground truth of what changed in the code
 3. A structured event log from a Playwright browser session — what happened on screen and when (timestamps in ms)
 
+IMPORTANT: Some event log entries have action "narrate" — these are **developer-authored narration anchors**. They are the most important signal for what to say at that moment. Use them as the foundation for your narration: incorporate their intent and phrasing, connect them to the diff, and expand them with technical context from the code changes. Every narrate anchor should produce a corresponding segment near its timestamp.
+
 Your output is a JSON object with a "segments" array. Each segment has:
 - "start": timestamp in ms when narration should begin (aligned to event log)
 - "end": timestamp in ms when narration should end
@@ -26,10 +28,12 @@ Your output is a JSON object with a "segments" array. Each segment has:
 
 Rules:
 - Reference the PR's stated purpose early in the narration.
+- Anchor each segment to a narrate event or meaningful action in the event log.
 - Connect on-screen moments to specific changes in the diff. Say what changed in the code, not just what's visible.
 - Never describe what's visually obvious (e.g. don't say "a page loads" — say what the page now does differently).
 - Keep each segment under 30 words.
 - Total narration should be 60-120 seconds of speaking time (~150-300 words total).
+- Produce one segment per narrate anchor, plus additional segments only if needed for flow.
 - Make segments flow naturally as a cohesive narration.
 - Use a professional but conversational tone.
 - Output ONLY the JSON object, no other text.`;
