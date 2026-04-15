@@ -1,0 +1,57 @@
+name: prdemo
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  demo-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for git diff
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Piper TTS
+        run: |
+          # Download Piper binary (ships with libonnxruntime)
+          PIPER_VERSION="2023.11.14-2"
+          curl -sL "https://github.com/rhasspy/piper/releases/download/${PIPER_VERSION}/piper_linux_x86_64.tar.gz" -o /tmp/piper.tar.gz
+          tar -xzf /tmp/piper.tar.gz -C /opt
+          chmod +x /opt/piper/piper
+
+          # Download voice model
+          mkdir -p /opt/piper-voices
+          curl -sL "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx" \
+            -o /opt/piper-voices/en_US-lessac-medium.onnx
+          curl -sL "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json" \
+            -o /opt/piper-voices/en_US-lessac-medium.onnx.json
+
+      - name: Install prdemo
+        run: npm install -g "github:szabadkai/prdemo"
+
+      - name: Generate demo video
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PIPER_BIN: /opt/piper/piper
+          PIPER_VOICE: /opt/piper-voices/en_US-lessac-medium.onnx
+          LD_LIBRARY_PATH: /opt/piper
+        run: prdemo run --post

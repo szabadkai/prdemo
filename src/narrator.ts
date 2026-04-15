@@ -48,18 +48,6 @@ export async function generateNarration(
     throw new Error("OPENROUTER_API_KEY is not set");
   }
 
-  // Model options (set via OPENROUTER_MODEL env var):          input/output per 1M tokens
-  //   google/gemini-flash-1.5        — $0.075 / $0.30   — fast, good at JSON
-  //   google/gemini-flash-2.0        — $0.10  / $0.40   — newer, slightly better
-  //   deepseek/deepseek-chat-v3.1    — $0.15  / $0.75   — 671B MoE, great value
-  //   deepseek/deepseek-v3.2         — $0.26  / $0.38   — latest DeepSeek, GPT-5 class
-  //   openai/gpt-4o-mini             — $0.15  / $0.60   — solid all-rounder
-  //   moonshotai/kimi-k2.5           — $0.38  / $1.72   — strong multimodal + agentic
-  //   moonshotai/kimi-k2-0905        — $0.40  / $2.00   — 1T params, long context
-  //   meta-llama/llama-3.1-70b       — $0.40  / $0.40   — open-source, good quality
-  //   anthropic/claude-3.5-haiku     — $0.80  / $4.00   — great at following instructions
-  //   openai/gpt-4o                  — $2.50  / $10.00  — premium quality
-  //   anthropic/claude-sonnet-4      — $3.00  / $15.00  — best at structured output
   const model = process.env.OPENROUTER_MODEL || "google/gemini-flash-1.5";
 
   const client = new OpenAI({
