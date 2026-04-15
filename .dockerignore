@@ -1,0 +1,10 @@
+node_modules
+dist
+test-app
+bench
+*.mp4
+*.webm
+*.wav
+*.gif
+.env
+.git

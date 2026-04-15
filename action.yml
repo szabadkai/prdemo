@@ -1,0 +1,33 @@
+name: 'prdemo'
+description: 'Generate narrated demo videos from pull requests and post them as PR comments.'
+author: 'szabadkai'
+
+branding:
+  icon: 'video'
+  color: 'purple'
+
+inputs:
+  openrouter_api_key:
+    description: 'OpenRouter API key for LLM narration generation.'
+    required: true
+  github_token:
+    description: 'GitHub token for posting PR comments and uploading release assets.'
+    required: false
+    default: ${{ github.token }}
+  openrouter_model:
+    description: 'OpenRouter model to use for narration.'
+    required: false
+    default: 'google/gemini-2.0-flash-001'
+  post:
+    description: 'Whether to post the demo video as a PR comment.'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'docker'
+  image: 'docker://ghcr.io/szabadkai/prdemo:latest'
+  env:
+    INPUT_OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
+    INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+    INPUT_OPENROUTER_MODEL: ${{ inputs.openrouter_model }}
+    INPUT_POST: ${{ inputs.post }}
