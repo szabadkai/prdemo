@@ -45,7 +45,12 @@ jobs:
             -o /opt/piper-voices/en_US-lessac-medium.onnx.json
 
       - name: Install prdemo
-        run: npm install -g "github:szabadkai/prdemo"
+        run: |
+          git clone --depth 1 https://github.com/szabadkai/prdemo.git /tmp/prdemo
+          cd /tmp/prdemo
+          npm ci
+          npm run build
+          npm link
 
       - name: Generate demo video
         env:
