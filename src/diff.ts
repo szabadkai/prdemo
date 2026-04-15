@@ -63,10 +63,16 @@ export function getPRInfo(projectDir: string): PRInfo {
   let commitMessage = "";
 
   try {
-    branch = execSync("git rev-parse --abbrev-ref HEAD", {
-      cwd: projectDir,
-      encoding: "utf-8",
-    }).trim();
+    // In GitHub Actions PR workflows, HEAD is detached; use GITHUB_HEAD_REF
+    const ciBranch = process.env.GITHUB_HEAD_REF;
+    if (ciBranch) {
+      branch = ciBranch;
+    } else {
+      branch = execSync("git rev-parse --abbrev-ref HEAD", {
+        cwd: projectDir,
+        encoding: "utf-8",
+      }).trim();
+    }
   } catch {
     // ignore
   }
