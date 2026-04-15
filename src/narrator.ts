@@ -48,7 +48,7 @@ export async function generateNarration(
     throw new Error("OPENROUTER_API_KEY is not set");
   }
 
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-flash-1.5";
+  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001";
 
   const client = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",

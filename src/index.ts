@@ -40,8 +40,9 @@ function checkTools(): string[] {
   const warnings: string[] = [];
 
   // Check for Piper or macOS say
+  const piperBin = process.env.PIPER_BIN || "piper";
   const hasPiper = (() => {
-    try { execSync("which piper", { stdio: "ignore" }); return true; } catch { return false; }
+    try { execSync(`which "${piperBin}" 2>/dev/null || test -x "${piperBin}"`, { stdio: "ignore" }); return true; } catch { return false; }
   })();
   const piperVoice = process.env.PIPER_VOICE;
   const hasSay = process.platform === "darwin";

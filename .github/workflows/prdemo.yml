@@ -55,6 +55,7 @@ jobs:
       - name: Generate demo video
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PIPER_BIN: /opt/piper/piper
           PIPER_VOICE: /opt/piper-voices/en_US-lessac-medium.onnx
