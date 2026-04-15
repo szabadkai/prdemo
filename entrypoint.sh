@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+# Fix "dubious ownership" — Docker runs as root but checkout was done by runner
+git config --global --add safe.directory /github/workspace
+
 # Map GitHub Action inputs (passed as env vars by the action runtime)
 export OPENROUTER_API_KEY="${INPUT_OPENROUTER_API_KEY}"
 export GITHUB_TOKEN="${INPUT_GITHUB_TOKEN}"
