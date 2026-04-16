@@ -54,9 +54,11 @@ function checkTools(): string[] {
     );
   } else if (hasPiper && piperVoice && !fs.existsSync(piperVoice)) {
     warnings.push(
-      `PIPER_VOICE points to ${piperVoice} but the file doesn't exist.\n` +
-      "  Download a voice model from https://github.com/rhasspy/piper/blob/master/VOICES.md"
+      `PIPER_VOICE points to ${piperVoice} but the file doesn't exist.`
     );
+  } else if (hasPiper && !piperVoice) {
+    // Will auto-download on first run — just note it
+    console.log("  Piper found. Voice model will be auto-downloaded on first run (~63MB).");
   }
 
   // Check git is available

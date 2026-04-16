@@ -2,9 +2,85 @@ import { execFileSync, execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import https from "node:https";
+import http from "node:http";
 import ffmpegModule from "ffmpeg-static";
 const ffmpegBin: string = (ffmpegModule as unknown as string) || "ffmpeg";
 import type { NarrationSegment } from "./types.js";
+
+const DEFAULT_VOICE = "en_US-lessac-medium";
+const VOICE_BASE_URL =
+  "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium";
+
+/** Persistent cache dir: ~/.cache/diffcast/voices */
+function voiceCacheDir(): string {
+  const base =
+    process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache");
+  const dir = path.join(base, "diffcast", "voices");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Download a file from a URL to a local path. Follows redirects.
+ */
+function downloadFile(url: string, dest: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tmpDest = dest + ".tmp";
+    const file = fs.createWriteStream(tmpDest);
+    const get = url.startsWith("https:") ? https.get : http.get;
+
+    get(url, (res) => {
+      // Follow redirects (HuggingFace returns 302)
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        file.close();
+        fs.unlinkSync(tmpDest);
+        downloadFile(res.headers.location, dest).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        file.close();
+        fs.unlinkSync(tmpDest);
+        reject(new Error(`Download failed: HTTP ${res.statusCode} for ${url}`));
+        return;
+      }
+      res.pipe(file);
+      file.on("finish", () => {
+        file.close();
+        fs.renameSync(tmpDest, dest);
+        resolve();
+      });
+    }).on("error", (err) => {
+      file.close();
+      try { fs.unlinkSync(tmpDest); } catch {}
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Ensure the default Piper voice model is available locally.
+ * Downloads from HuggingFace on first use (~63MB), then caches.
+ * Returns the path to the .onnx file.
+ */
+export async function ensureVoiceModel(voiceName = DEFAULT_VOICE): Promise<string> {
+  const cacheDir = voiceCacheDir();
+  const onnxPath = path.join(cacheDir, `${voiceName}.onnx`);
+  const jsonPath = path.join(cacheDir, `${voiceName}.onnx.json`);
+
+  if (fs.existsSync(onnxPath) && fs.existsSync(jsonPath)) {
+    return onnxPath;
+  }
+
+  console.log(`  Downloading Piper voice model: ${voiceName} (~63MB)...`);
+  console.log(`  Cache: ${cacheDir}`);
+
+  await downloadFile(`${VOICE_BASE_URL}/${voiceName}.onnx`, onnxPath);
+  await downloadFile(`${VOICE_BASE_URL}/${voiceName}.onnx.json`, jsonPath);
+
+  console.log(`  Voice model cached.`);
+  return onnxPath;
+}
 
 export interface RenderedAudio {
   paths: string[];
@@ -17,11 +93,19 @@ export async function renderAudio(
 ): Promise<RenderedAudio> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "diffcast-tts-"));
   const piperBin = process.env.PIPER_BIN || "piper";
-  const voiceModel =
-    process.env.PIPER_VOICE || "en_US-lessac-medium.onnx";
 
   // Check if piper is available
   const usePiper = isPiperAvailable(piperBin);
+
+  // Resolve voice model: explicit path > auto-download > bare filename fallback
+  let voiceModel: string;
+  if (process.env.PIPER_VOICE) {
+    voiceModel = process.env.PIPER_VOICE;
+  } else if (usePiper) {
+    voiceModel = await ensureVoiceModel();
+  } else {
+    voiceModel = `${DEFAULT_VOICE}.onnx`;
+  }
 
   const paths: string[] = [];
   const durations: number[] = [];
