@@ -53,14 +53,20 @@ Output ONLY the JSON object, no other text.`;
 export async function inferDemoScript(
   diff: string,
   prInfo: PRInfo,
-  baseUrl: string
+  baseUrl: string,
+  opts: { diffCharLimit?: number } = {}
 ): Promise<DemoStep[]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is not set");
   }
 
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-flash-1.5";
+  const model =
+    process.env.OPENROUTER_MODEL_INFER ||
+    process.env.OPENROUTER_MODEL ||
+    "google/gemini-2.0-flash-001";
+
+  const diffLimit = opts.diffCharLimit ?? 12_000;
 
   const client = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
@@ -76,7 +82,7 @@ ${baseUrl}
 
 ## Git Diff
 \`\`\`diff
-${diff.slice(0, 12000)}
+${diff.slice(0, diffLimit)}
 \`\`\`
 
 Generate a demo script that showcases these changes.`;

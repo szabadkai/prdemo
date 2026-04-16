@@ -10,11 +10,12 @@ export function startApp(
   startCmd: string,
   port: number
 ): AppHandle {
-  const [cmd, ...args] = startCmd.split(" ");
-  const child = spawn(cmd, args, {
+  // Spawn through shell to handle quoted args, pipes, and -- separators correctly
+  const child = spawn(startCmd, {
     cwd: projectDir,
     stdio: "pipe",
     detached: true,
+    shell: true,
     env: { ...process.env, PORT: String(port) },
   });
 

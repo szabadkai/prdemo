@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import type { NarrationSegment } from "./types.js";
 
@@ -108,8 +109,7 @@ export function generateGif(
 
   // Clean up palette
   try {
-    const { unlinkSync } = require("node:fs");
-    unlinkSync(palettePath);
+    fs.unlinkSync(palettePath);
   } catch { /* ignore */ }
 
   return outputPath;

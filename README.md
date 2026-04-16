@@ -35,7 +35,9 @@ Copy `.env.example` to `.env` and fill in:
 | Variable | Required | Description |
 |---|---|---|
 | `OPENROUTER_API_KEY` | **Yes** | Your OpenRouter API key |
-| `OPENROUTER_MODEL` | No | LLM model (default: `google/gemini-flash-1.5`) |
+| `OPENROUTER_MODEL` | No | LLM model for both tasks (default: `google/gemini-2.0-flash-001`) |
+| `OPENROUTER_MODEL_INFER` | No | Model override for demo script inference |
+| `OPENROUTER_MODEL_NARRATE` | No | Model override for narration generation |
 | `GITHUB_TOKEN` | For `--post` | GitHub PAT with `repo` scope |
 | `PIPER_VOICE` | If using Piper | Path to `.onnx` voice model |
 | `SAY_VOICE` | No | macOS voice name (default: Samantha) |
@@ -51,8 +53,20 @@ ready: http://localhost:3000          # URL to poll for readiness
 # Optional
 setup: npm install                    # Run before starting the server
 output: demo.mp4                      # Output file path
-model: google/gemini-flash-1.5        # Override LLM model
+
+# Model config — string sets both, or use object for per-task
+model: google/gemini-2.0-flash-001    # Override LLM model for both tasks
+# model:
+#   infer: google/gemini-2.0-flash-001   # Model for demo script inference
+#   narrate: google/gemini-2.0-flash-001 # Model for narration generation
+
 env: [.env.local]                     # Extra env files to load
+
+# Advanced tuning
+limits:
+  inferDiffChars: 12000               # Max chars of diff sent to inference
+  narrateDiffChars: 8000              # Max chars of diff sent to narrator
+  readyTimeoutMs: 30000               # App startup timeout
 
 # Optional browser-style framing
 frame:
@@ -61,7 +75,7 @@ frame:
   margin: 50
   contentInset: 25
   barHeight: 44
-  backgroundImage: foo.jpg            # used only for post-process frame mode
+  backgroundImage: bg.jpg             # optional background image for frame
 
 viewport:
   width: 1280

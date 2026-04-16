@@ -41,14 +41,20 @@ Rules:
 export async function generateNarration(
   diff: string,
   eventLog: EventLogEntry[],
-  prInfo: PRInfo
+  prInfo: PRInfo,
+  opts: { diffCharLimit?: number } = {}
 ): Promise<NarrationSegment[]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is not set");
   }
 
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001";
+  const model =
+    process.env.OPENROUTER_MODEL_NARRATE ||
+    process.env.OPENROUTER_MODEL ||
+    "google/gemini-2.0-flash-001";
+
+  const diffLimit = opts.diffCharLimit ?? 8_000;
 
   const client = new OpenAI({
     baseURL: "https://openrouter.ai/api/v1",
@@ -61,7 +67,7 @@ Commit message: ${prInfo.commitMessage}
 
 ## Git Diff
 \`\`\`diff
-${diff.slice(0, 8000)}
+${diff.slice(0, diffLimit)}
 \`\`\`
 
 ## Event Log

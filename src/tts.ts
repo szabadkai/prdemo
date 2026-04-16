@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync, execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -9,6 +9,7 @@ import type { NarrationSegment } from "./types.js";
 export interface RenderedAudio {
   paths: string[];
   durations: number[]; // duration in ms per segment
+  tmpDir: string; // temp directory to clean up
 }
 
 export async function renderAudio(
@@ -40,7 +41,7 @@ export async function renderAudio(
     durations.push(getAudioDurationMs(outPath));
   }
 
-  return { paths, durations };
+  return { paths, durations, tmpDir };
 }
 
 function isPiperAvailable(piperBin: string): boolean {
@@ -58,11 +59,14 @@ function renderWithPiper(
   text: string,
   outPath: string
 ): void {
-  // Piper reads text from stdin
-  execSync(
-    `echo ${JSON.stringify(text)} | ${piperBin} --model ${voiceModel} --output_file ${outPath}`,
-    { stdio: "pipe" }
-  );
+  // Piper reads text from stdin — use spawnSync to avoid shell injection
+  const result = spawnSync(piperBin, ["--model", voiceModel, "--output_file", outPath], {
+    input: text,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    throw new Error(`Piper failed: ${result.stderr?.toString().slice(0, 200)}`);
+  }
 }
 
 function renderWithSay(text: string, outPath: string): void {
@@ -94,17 +98,7 @@ function renderWithSay(text: string, outPath: string): void {
 }
 
 function getAudioDurationMs(filePath: string): number {
-  try {
-    const output = execFileSync(ffmpegBin, [
-      "-i", filePath,
-      "-f", "null", "-",
-    ], { stdio: ["pipe", "pipe", "pipe"] });
-    // ffmpeg prints duration to stderr
-  } catch {
-    // ffmpeg returns non-zero but prints info to stderr — that's expected
-  }
-
-  // Read WAV header to get duration: more reliable than parsing ffmpeg output
+  // Read WAV header to get duration directly — no need for ffmpeg
   const buf = fs.readFileSync(filePath);
   // WAV format: bytes 28-31 = byte rate, bytes 40-43 = data chunk size
   if (buf.length < 44) return 2000; // fallback 2s

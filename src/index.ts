@@ -144,7 +144,17 @@ program
 
     // Apply model override from config
     if (config?.model && !process.env.OPENROUTER_MODEL) {
-      process.env.OPENROUTER_MODEL = config.model;
+      if (typeof config.model === "string") {
+        process.env.OPENROUTER_MODEL = config.model;
+      } else {
+        // Per-task model overrides — set individual env vars
+        if (config.model.infer) {
+          process.env.OPENROUTER_MODEL_INFER = config.model.infer;
+        }
+        if (config.model.narrate) {
+          process.env.OPENROUTER_MODEL_NARRATE = config.model.narrate;
+        }
+      }
     }
 
     console.log(`\n🎬 prdemo v0.1\n`);
@@ -171,6 +181,7 @@ program
     }
 
     let appHandle;
+    const tmpDirs: string[] = [];
 
     try {
       // Step 1: Setup (if configured)
@@ -184,7 +195,7 @@ program
       // Step 1: Start the app
       console.log("1/6 Starting app...");
       appHandle = startApp(projectDir, startCmd, port);
-      await waitForReady(readyUrl);
+      await waitForReady(readyUrl, config?.limits?.readyTimeoutMs);
       console.log("  App is ready.\n");
 
       // Step 2a: Extract diff + PR info (needed before recording if infer mode)
@@ -198,7 +209,9 @@ program
       let effectiveConfig = config;
       if (config?.demo?.infer && (!config.demo.script || config.demo.script.length === 0)) {
         console.log("2b/6 Inferring demo script from diff...");
-        const inferredSteps = await inferDemoScript(diff, prInfo, readyUrl);
+        const inferredSteps = await inferDemoScript(diff, prInfo, readyUrl, {
+          diffCharLimit: config.limits?.inferDiffChars,
+        });
         console.log(`  Inferred ${inferredSteps.length} steps\n`);
         // Merge inferred steps into a copy of the config
         effectiveConfig = {
@@ -215,10 +228,9 @@ program
             ...(effectiveConfig?.frame || {}),
             enabled: true,
             inBrowser: true,
-            backgroundImage: path.resolve(
-              projectDir,
-              effectiveConfig?.frame?.backgroundImage || "foo.jpg"
-            ),
+            backgroundImage: effectiveConfig?.frame?.backgroundImage
+              ? path.resolve(projectDir, effectiveConfig.frame.backgroundImage)
+              : undefined,
           },
         } as PrdemoConfig;
       }
@@ -229,17 +241,21 @@ program
         baseUrl: readyUrl,
         config: effectiveConfig,
       });
+      tmpDirs.push(path.dirname(videoPath));
       console.log(`  Video: ${videoPath}`);
       console.log(`  Events: ${eventLog.length} entries\n`);
 
       // Step 4: Generate narration
       console.log("4/6 Generating narration...");
-      const segments = await generateNarration(diff, eventLog, prInfo);
+      const segments = await generateNarration(diff, eventLog, prInfo, {
+        diffCharLimit: config?.limits?.narrateDiffChars,
+      });
       console.log(`  Generated ${segments.length} segments\n`);
 
       // Step 5: Render TTS
       console.log("5/6 Rendering audio...");
       const rendered = await renderAudio(segments);
+      tmpDirs.push(rendered.tmpDir);
       console.log(`  Rendered ${rendered.paths.length} audio files`);
       console.log(
         `  Durations: ${rendered.durations.map((d) => (d / 1000).toFixed(1) + "s").join(", ")}`
@@ -329,6 +345,14 @@ program
     } finally {
       if (appHandle) {
         stopApp(appHandle);
+      }
+      // Clean up temp directories
+      for (const dir of tmpDirs) {
+        try {
+          fs.rmSync(dir, { recursive: true, force: true });
+        } catch {
+          // best-effort cleanup
+        }
       }
     }
   });

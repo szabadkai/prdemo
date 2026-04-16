@@ -47,7 +47,7 @@ const FrameSchema = z.object({
   /** Browser top bar height */
   barHeight: z.number().default(44),
   /** Background image path (relative to project dir) */
-  backgroundImage: z.string().default("foo.jpg"),
+  backgroundImage: z.string().optional(),
 });
 
 const ConfigSchema = z.object({
@@ -75,10 +75,29 @@ const ConfigSchema = z.object({
   }).default({ width: 1280, height: 720 }),
   /** Env files to load (in order) */
   env: z.array(z.string()).optional(),
-  /** OpenRouter model override */
-  model: z.string().optional(),
+  /** OpenRouter model override — string sets both, object allows per-task */
+  model: z.union([
+    z.string(),
+    z.object({
+      infer: z.string().optional(),
+      narrate: z.string().optional(),
+    }),
+  ]).optional(),
   /** Output file path */
   output: z.string().optional(),
+  /** Advanced tuning knobs */
+  limits: z.object({
+    /** Max chars of diff sent to inference LLM (default 12000) */
+    inferDiffChars: z.number().default(12_000),
+    /** Max chars of diff sent to narrator LLM (default 8000) */
+    narrateDiffChars: z.number().default(8_000),
+    /** Timeout in ms waiting for app to become ready (default 30000) */
+    readyTimeoutMs: z.number().default(30_000),
+  }).default({
+    inferDiffChars: 12_000,
+    narrateDiffChars: 8_000,
+    readyTimeoutMs: 30_000,
+  }),
 });
 
 export type PrdemoConfig = z.infer<typeof ConfigSchema>;
