@@ -100,17 +100,17 @@ const ConfigSchema = z.object({
   }),
 });
 
-export type PrdemoConfig = z.infer<typeof ConfigSchema>;
+export type DiffcastConfig = z.infer<typeof ConfigSchema>;
 
 // ---------- Loader ----------
 
-const CONFIG_FILENAMES = [".prdemo.yml", ".prdemo.yaml", "prdemo.yml", "prdemo.yaml"];
+const CONFIG_FILENAMES = [".diffcast.yml", ".diffcast.yaml", "diffcast.yml", "diffcast.yaml"];
 
 /**
- * Load and validate .prdemo.yml from the project directory.
+ * Load and validate .diffcast.yml from the project directory.
  * Returns null if no config file is found.
  */
-export function loadConfig(projectDir: string): PrdemoConfig | null {
+export function loadConfig(projectDir: string): DiffcastConfig | null {
   for (const name of CONFIG_FILENAMES) {
     const filePath = path.join(projectDir, name);
     if (fs.existsSync(filePath)) {
@@ -152,7 +152,7 @@ export function resolveReadyUrl(ready: string): { url: string; port: number } {
   }
 }
 
-// ---------- Generator (prdemo init) ----------
+// ---------- Generator (diffcast init) ----------
 
 interface InitOptions {
   framework: "nextjs" | "vite" | "remix" | "other";

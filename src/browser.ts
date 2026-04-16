@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import type { EventLogEntry } from "./types.js";
-import type { DemoStep, PrdemoConfig } from "./config.js";
+import type { DemoStep, DiffcastConfig } from "./config.js";
 
 export interface RecordingResult {
   videoPath: string;
@@ -12,12 +12,12 @@ export interface RecordingResult {
 
 export interface RecordOptions {
   baseUrl: string;
-  config?: PrdemoConfig | null;
+  config?: DiffcastConfig | null;
 }
 
 async function installInBrowserFrame(
   context: BrowserContext,
-  frame?: PrdemoConfig["frame"]
+  frame?: DiffcastConfig["frame"]
 ): Promise<void> {
   if (!frame?.enabled || !frame.inBrowser) return;
 
@@ -35,10 +35,10 @@ async function installInBrowserFrame(
   await context.addInitScript(
     ({ marginPx, insetPx, barHeightPx, backgroundImageUrl }) => {
       const apply = () => {
-        if (document.getElementById("__prdemo_frame_style")) return;
+        if (document.getElementById("__diffcast_frame_style")) return;
 
         const style = document.createElement("style");
-        style.id = "__prdemo_frame_style";
+        style.id = "__diffcast_frame_style";
         style.textContent = `
           html {
             background: ${
@@ -62,7 +62,7 @@ async function installInBrowserFrame(
             overflow: hidden !important;
           }
           /* Force app content to occupy the full framed viewport area */
-          body > :not(#__prdemo_frame_overlay):not(script):not(style) {
+          body > :not(#__diffcast_frame_overlay):not(script):not(style) {
             width: calc(100vw - ${marginPx * 2}px) !important;
             max-width: none !important;
             min-height: calc(100vh - ${marginPx * 2 + barHeightPx}px) !important;
@@ -75,7 +75,7 @@ async function installInBrowserFrame(
             margin: 0 !important;
             box-sizing: border-box !important;
           }
-          #__prdemo_frame_overlay {
+          #__diffcast_frame_overlay {
             position: fixed;
             inset: ${marginPx}px;
             border: 2px solid #334155;
@@ -85,23 +85,23 @@ async function installInBrowserFrame(
             pointer-events: none;
             overflow: hidden;
           }
-          #__prdemo_frame_overlay .bar {
+          #__diffcast_frame_overlay .bar {
             height: ${barHeightPx}px;
             border-bottom: 1px solid #334155;
             background: #0f172a;
             position: relative;
           }
-          #__prdemo_frame_overlay .dot {
+          #__diffcast_frame_overlay .dot {
             width: 11px;
             height: 11px;
             border-radius: 50%;
             top: ${Math.round((barHeightPx - 11) / 2)}px;
             position: absolute;
           }
-          #__prdemo_frame_overlay .dot.red { left: 14px; background: #ff5f57; }
-          #__prdemo_frame_overlay .dot.yellow { left: 31px; background: #ffbd2e; }
-          #__prdemo_frame_overlay .dot.green { left: 48px; background: #28c840; }
-          #__prdemo_frame_overlay .address {
+          #__diffcast_frame_overlay .dot.red { left: 14px; background: #ff5f57; }
+          #__diffcast_frame_overlay .dot.yellow { left: 31px; background: #ffbd2e; }
+          #__diffcast_frame_overlay .dot.green { left: 48px; background: #28c840; }
+          #__diffcast_frame_overlay .address {
             position: absolute;
             left: 120px;
             right: 16px;
@@ -115,7 +115,7 @@ async function installInBrowserFrame(
         document.head.appendChild(style);
 
         const overlay = document.createElement("div");
-        overlay.id = "__prdemo_frame_overlay";
+        overlay.id = "__diffcast_frame_overlay";
         overlay.innerHTML = `
           <div class="bar">
             <div class="dot red"></div>
@@ -148,7 +148,7 @@ export async function recordDemo(
   const { baseUrl, config } = opts;
   const vw = config?.viewport?.width ?? 1280;
   const vh = config?.viewport?.height ?? 720;
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "prdemo-video-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "diffcast-video-"));
   const eventLog: EventLogEntry[] = [];
   const startTime = Date.now();
 

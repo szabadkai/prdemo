@@ -18,7 +18,7 @@ import {
   resolveReadyUrl,
   generateConfig,
   detectFramework,
-  type PrdemoConfig,
+  type DiffcastConfig,
 } from "./config.js";
 
 dotenv.config();
@@ -70,7 +70,7 @@ function checkTools(): string[] {
 const program = new Command();
 
 program
-  .name("prdemo")
+  .name("diffcast")
   .description("Produce narrated demo videos from pull requests")
   .version("0.1.0");
 
@@ -78,12 +78,12 @@ program
 
 program
   .command("init")
-  .description("Generate a starter .prdemo.yml for this project")
+  .description("Generate a starter .diffcast.yml for this project")
   .option("-d, --project-dir <path>", "Path to the project directory", ".")
   .option("-p, --port <number>", "Dev server port")
   .action((opts) => {
     const projectDir = path.resolve(opts.projectDir);
-    const outFile = path.join(projectDir, ".prdemo.yml");
+    const outFile = path.join(projectDir, ".diffcast.yml");
 
     if (fs.existsSync(outFile)) {
       console.log(`⚠ ${outFile} already exists. Delete it first to re-init.`);
@@ -99,7 +99,7 @@ program
     fs.writeFileSync(outFile, yml, "utf-8");
     console.log(`✅ Created ${outFile}\n`);
     console.log(`  Edit the demo.script section to describe your PR's demo flow.`);
-    console.log(`  Then run: prdemo run\n`);
+    console.log(`  Then run: diffcast run\n`);
   });
 
 // ---------- run ----------
@@ -114,13 +114,17 @@ program
   .option("--frame", "Wrap output with browser-style frame")
   .option("--frame-in-browser", "Render frame in browser while recording (faster)")
   .option("--post", "Post the video as a GitHub PR comment")
+  .option("--dry-run", "Show what would happen without recording or posting")
+  .option("--verbose", "Show detailed output for each step")
   .action(async (opts) => {
     const projectDir = path.resolve(opts.projectDir);
+    const dryRun = !!opts.dryRun;
+    const verbose = !!opts.verbose;
 
     // Load config (optional — falls back to defaults + CLI flags)
     const config = loadConfig(projectDir);
     if (config) {
-      console.log("  Loaded .prdemo.yml");
+      console.log("  Loaded .diffcast.yml");
       // Load extra env files from config
       if (config.env) {
         for (const envFile of config.env) {
@@ -139,7 +143,7 @@ program
       : config?.ready || "http://localhost:3000";
     const { url: readyUrl, port } = resolveReadyUrl(readyRaw);
     const outputPath = path.resolve(
-      opts.output || config?.output || "prdemo-output.mp4"
+      opts.output || config?.output || "diffcast-output.mp4"
     );
 
     // Apply model override from config
@@ -157,7 +161,7 @@ program
       }
     }
 
-    console.log(`\n🎬 prdemo v0.1\n`);
+    console.log(`\n🎬 diffcast v0.1\n`);
     console.log(`  Project:  ${projectDir}`);
     console.log(`  Port:     ${port}`);
     console.log(`  Start:    ${startCmd}`);
@@ -167,6 +171,7 @@ program
       const scriptLabel = stepCount > 0 ? `${stepCount} steps` : config.demo?.infer ? "infer (from diff)" : "auto-explore";
       console.log(`  Script:   ${scriptLabel}`);
     }
+    if (dryRun) console.log(`  Mode:     dry-run`);
     console.log();
 
     // Preflight checks
@@ -178,6 +183,11 @@ program
         console.log(`  ⚠ ${w}`);
       }
       console.log();
+    }
+
+    if (dryRun) {
+      console.log("Dry run complete — no recording or posting performed.\n");
+      return;
     }
 
     let appHandle;
@@ -204,6 +214,11 @@ program
       const prInfo = getPRInfo(projectDir);
       console.log(`  Branch: ${prInfo.branch}`);
       console.log(`  Diff: ${diff.split("\n").length} lines\n`);
+      if (verbose) {
+        console.log("  --- Diff preview (first 40 lines) ---");
+        console.log(diff.split("\n").slice(0, 40).map(l => `  ${l}`).join("\n"));
+        console.log("  ---\n");
+      }
 
       // Step 2b: Infer demo script if configured
       let effectiveConfig = config;
@@ -232,7 +247,7 @@ program
               ? path.resolve(projectDir, effectiveConfig.frame.backgroundImage)
               : undefined,
           },
-        } as PrdemoConfig;
+        } as DiffcastConfig;
       }
 
       // Step 3: Record browser demo
@@ -244,6 +259,12 @@ program
       tmpDirs.push(path.dirname(videoPath));
       console.log(`  Video: ${videoPath}`);
       console.log(`  Events: ${eventLog.length} entries\n`);
+      if (verbose && eventLog.length > 0) {
+        for (const e of eventLog) {
+          console.log(`    ${(e.timestamp / 1000).toFixed(1)}s  ${e.action}${e.selector ? ` → ${e.selector}` : ""}${e.text ? ` "${e.text}"` : ""}`);
+        }
+        console.log();
+      }
 
       // Step 4: Generate narration
       console.log("4/6 Generating narration...");
@@ -251,6 +272,12 @@ program
         diffCharLimit: config?.limits?.narrateDiffChars,
       });
       console.log(`  Generated ${segments.length} segments\n`);
+      if (verbose) {
+        for (const s of segments) {
+          console.log(`    ${(s.start / 1000).toFixed(1)}–${(s.end / 1000).toFixed(1)}s: "${s.text}"`);
+        }
+        console.log();
+      }
 
       // Step 5: Render TTS
       console.log("5/6 Rendering audio...");
@@ -331,14 +358,14 @@ program
         console.error("\n  → Create a .env file with your API key:");
         console.error("    cp .env.example .env && $EDITOR .env");
       } else if (msg.includes("did not become ready")) {
-        console.error("\n  → Is the start command correct? Check .prdemo.yml → start:");
+        console.error("\n  → Is the start command correct? Check .diffcast.yml → start:");
         console.error(`    Currently: "${startCmd}"`);
         console.error(`    Expected to listen on: ${readyUrl}`);
       } else if (msg.includes("No video file found")) {
         console.error("\n  → Playwright recording failed. Try: npx playwright install chromium");
       } else if (msg.includes("Invalid config")) {
-        console.error("\n  → Fix the issues above in .prdemo.yml");
-        console.error("    Run `prdemo init` to generate a fresh config.");
+        console.error("\n  → Fix the issues above in .diffcast.yml");
+        console.error("    Run `diffcast init` to generate a fresh config.");
       }
 
       process.exit(1);

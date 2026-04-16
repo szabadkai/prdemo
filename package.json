@@ -1,10 +1,10 @@
 {
-  "name": "prdemo",
+  "name": "diffcast",
   "version": "0.1.0",
   "description": "CLI that produces narrated demo videos from pull requests.",
   "main": "dist/index.js",
   "bin": {
-    "prdemo": "dist/index.js"
+    "diffcast": "dist/index.js"
   },
   "files": [
     "dist"

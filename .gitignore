@@ -7,4 +7,4 @@ dist/
 *.gif
 tmp/
 bench/results.json
-prdemo-output-palette.png
+diffcast-output-palette.png

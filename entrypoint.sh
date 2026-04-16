@@ -23,9 +23,9 @@ else
   npm install
 fi
 
-# Run prdemo
+# Run diffcast
 if [ "${INPUT_POST}" = "true" ]; then
-  prdemo run --post
+  diffcast run --post
 else
-  prdemo run
+  diffcast run
 fi

@@ -15,7 +15,7 @@ export interface RenderedAudio {
 export async function renderAudio(
   segments: NarrationSegment[]
 ): Promise<RenderedAudio> {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "prdemo-tts-"));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "diffcast-tts-"));
   const piperBin = process.env.PIPER_BIN || "piper";
   const voiceModel =
     process.env.PIPER_VOICE || "en_US-lessac-medium.onnx";
