@@ -63,9 +63,38 @@ export default function Home() {
         </div>
       </section>
 
+      {/* GitHub Actions — the easiest path */}
+      <section className="px-6 sm:px-10 pb-24">
+        <div className="animate-in stagger-4 max-w-2xl">
+          <p className="text-sm text-muted mb-4">
+            Or drop it into your CI. One step, no install.
+          </p>
+          <div className="bg-surface border border-border rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <span className="text-xs text-dim">.github/workflows/demo.yml</span>
+              <Copy text={`- uses: szabadkai/diffcast@main\n  with:\n    openrouter_api_key: \${{ secrets.OPENROUTER_API_KEY }}`} />
+            </div>
+            <pre className="p-5 text-sm leading-7 overflow-x-auto">
+<span className="text-dim">name:</span> <span className="text-foreground">Demo</span>{"\n"}
+<span className="text-dim">on:</span> <span className="text-foreground">pull_request</span>{"\n"}
+<span className="text-dim">jobs:</span>{"\n"}
+{"  "}<span className="text-dim">demo:</span>{"\n"}
+{"    "}<span className="text-dim">runs-on:</span> <span className="text-foreground">ubuntu-latest</span>{"\n"}
+{"    "}<span className="text-dim">steps:</span>{"\n"}
+{"      "}<span className="text-dim">-</span> <span className="text-accent">uses</span><span className="text-dim">:</span> <span className="text-green">szabadkai/diffcast@main</span>{"\n"}
+{"        "}<span className="text-accent">with</span><span className="text-dim">:</span>{"\n"}
+{"          "}<span className="text-accent">openrouter_api_key</span><span className="text-dim">:</span> <span className="text-foreground">{"${{ secrets.OPENROUTER_API_KEY }}"}</span>
+            </pre>
+          </div>
+          <p className="text-xs text-dim mt-3">
+            Runs as a Docker action. Piper, Playwright, and ffmpeg are bundled in the image.
+          </p>
+        </div>
+      </section>
+
       {/* Terminal output demo */}
       <section className="px-6 sm:px-10 pb-24">
-        <div className="animate-in stagger-4 max-w-2xl bg-surface border border-border rounded-lg overflow-hidden">
+        <div className="max-w-2xl bg-surface border border-border rounded-lg overflow-hidden">
           <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border">
             <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f57]" />
             <span className="w-2.5 h-2.5 rounded-full bg-[#febc2e]" />
