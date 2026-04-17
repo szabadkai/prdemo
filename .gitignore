@@ -8,3 +8,4 @@ dist/
 tmp/
 bench/results.json
 diffcast-output-palette.png
+.DS_Store

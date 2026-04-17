@@ -1,23 +1,23 @@
-# prdemo
+# diffcast
 
 CLI that produces narrated demo videos from pull requests. Point it at any JS/TS web app, and it records a browser demo, generates narration from the diff, and posts the result as a PR comment with an inline GIF preview.
 
 ## Quick start
 
 ```bash
-# Install globally (or use npx prdemo)
-npm install -g prdemo
+# Install globally (or use npx diffcast)
+npm install -g diffcast
 
 # Install browser engine (one-time)
 npx playwright install chromium
 
 # Set up in your project
 cd your-project
-prdemo init          # generates .prdemo.yml
+diffcast init          # generates .diffcast.yml
 cp .env.example .env # fill in OPENROUTER_API_KEY
 
 # Run it
-prdemo run
+diffcast run
 ```
 
 ## Prerequisites
@@ -43,7 +43,7 @@ Copy `.env.example` to `.env` and fill in:
 | `SAY_VOICE` | No | macOS voice name (default: Samantha) |
 | `SAY_RATE` | No | macOS speech rate (default: 175) |
 
-## Config reference (`.prdemo.yml`)
+## Config reference (`.diffcast.yml`)
 
 ```yaml
 # Required
@@ -127,11 +127,11 @@ Every step supports `delay` (ms, default 3000) and `narrate` (text hint for the 
 ## CLI usage
 
 ```
-prdemo init [options]
+diffcast init [options]
   -d, --project-dir <path>    Project directory (default: .)
   -p, --port <number>         Dev server port
 
-prdemo run [options]
+diffcast run [options]
   -d, --project-dir <path>    Project directory (default: .)
   -p, --port <number>         Port override
   -s, --start-cmd <cmd>       Start command override
@@ -168,7 +168,7 @@ Without narrate hints, the LLM produces generic descriptions. With them, it conn
 
 ```bash
 git clone <repo>
-cd pr-demo
+cd diffcast
 npm install
 npx playwright install chromium
 cp .env.example .env

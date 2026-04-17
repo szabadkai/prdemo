@@ -120,8 +120,28 @@ Generate a demo script that showcases these changes.`;
 
     try {
       const parsed = JSON.parse(content);
-      const validated = InferResponseSchema.parse(parsed);
-      return validated.steps;
+      const rawSteps = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.steps)
+          ? parsed.steps
+          : null;
+      if (!rawSteps) {
+        throw new Error('Response missing "steps" array');
+      }
+      const valid: DemoStep[] = [];
+      const dropped: string[] = [];
+      for (let i = 0; i < rawSteps.length; i++) {
+        const r = InferredStepSchema.safeParse(rawSteps[i]);
+        if (r.success) valid.push(r.data);
+        else dropped.push(`step ${i}: ${r.error.issues[0]?.message || "invalid"}`);
+      }
+      if (valid.length === 0) {
+        throw new Error(`No valid steps (dropped: ${dropped.join("; ")})`);
+      }
+      if (dropped.length > 0) {
+        console.log(`  Dropped ${dropped.length} invalid step(s): ${dropped.join("; ")}`);
+      }
+      return valid;
     } catch (err) {
       console.error(
         `  Failed to parse inferred script (attempt ${attempt + 1}):`,

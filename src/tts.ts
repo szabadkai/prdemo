@@ -199,27 +199,76 @@ function getAudioDurationMs(filePath: string): number {
   return Math.round((dataSize / byteRate) * 1000);
 }
 
+export interface RespaceOptions {
+  gapMs?: number;
+  minGapMs?: number;
+  maxDurationMs?: number;
+  tailPadMs?: number;
+}
+
 /**
  * Re-space narration segments so they don't overlap, based on actual audio durations.
- * Each segment starts after the previous one finishes, with a gap between them.
+ * If `maxDurationMs` is provided, segments are packed (and dropped if needed) to fit
+ * within the recording length minus `tailPadMs` so audio doesn't run past the video.
  */
 export function respaceSegments(
   segments: NarrationSegment[],
   durations: number[],
-  gapMs = 800,
+  opts: RespaceOptions | number = {},
 ): NarrationSegment[] {
-  const result: NarrationSegment[] = [];
-  let cursor = segments[0]?.start ?? 0;
+  // Back-compat: allow calling with a number for gapMs.
+  const options: RespaceOptions =
+    typeof opts === "number" ? { gapMs: opts } : opts;
+  const defaultGap = options.gapMs ?? 800;
+  const minGap = options.minGapMs ?? 150;
+  const tailPad = options.tailPadMs ?? 500;
+  const maxDuration = options.maxDurationMs;
 
-  for (let i = 0; i < segments.length; i++) {
-    // Use the original start time if it's later than cursor (preserves natural pacing)
-    const start = Math.max(cursor, segments[i].start);
-    const end = start + durations[i];
-    result.push({ ...segments[i], start, end });
-    cursor = end + gapMs;
+  const pack = (items: NarrationSegment[], dur: number[], gap: number) => {
+    const out: NarrationSegment[] = [];
+    let cursor = items[0]?.start ?? 0;
+    for (let i = 0; i < items.length; i++) {
+      const start = Math.max(cursor, items[i].start);
+      const end = start + dur[i];
+      out.push({ ...items[i], start, end });
+      cursor = end + gap;
+    }
+    return out;
+  };
+
+  let working = segments.slice();
+  let workingDurs = durations.slice();
+  let packed = pack(working, workingDurs, defaultGap);
+
+  if (maxDuration && maxDuration > 0) {
+    const limit = maxDuration - tailPad;
+
+    // Try shrinking the inter-segment gap down to the floor.
+    if (packed.length > 0 && packed[packed.length - 1].end > limit) {
+      packed = pack(working, workingDurs, minGap);
+    }
+
+    // Still over budget — drop trailing segments until it fits.
+    while (packed.length > 1 && packed[packed.length - 1].end > limit) {
+      working = working.slice(0, -1);
+      workingDurs = workingDurs.slice(0, -1);
+      packed = pack(working, workingDurs, minGap);
+    }
+
+    // Last resort: a single segment longer than the whole clip. Clip its end.
+    if (packed.length === 1 && packed[0].end > limit) {
+      packed[0] = { ...packed[0], end: Math.max(packed[0].start + 100, limit) };
+    }
+
+    if (packed.length < segments.length) {
+      const dropped = segments.length - packed.length;
+      console.log(
+        `  Dropped ${dropped} trailing narration segment(s) to fit within ${(maxDuration / 1000).toFixed(1)}s recording`
+      );
+    }
   }
 
-  return result;
+  return packed;
 }
 
 

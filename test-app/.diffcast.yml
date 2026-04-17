@@ -1,0 +1,24 @@
+start: npm run dev
+ready: http://localhost:3000
+output: diffcast-test.mp4
+demo:
+  script:
+    - action: navigate
+      value: /
+      delay: 2000
+      narrate: Task Tracker — a simple task management app with a progress bar.
+    - action: click
+      selector: text=Buy groceries
+      delay: 1500
+      narrate: Click to mark a task complete.
+    - action: click
+      selector: text=Review pull requests
+      delay: 1500
+      narrate: Mark another task done.
+    - action: screenshot
+      value: See the progress bar at a glance.
+      delay: 2000
+    - action: navigate
+      value: /about
+      delay: 2000
+      narrate: The About page explains the new features in v0.2.

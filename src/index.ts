@@ -254,12 +254,12 @@ program
 
       // Step 3: Record browser demo
       console.log("3/6 Recording browser demo...");
-      const { videoPath, eventLog } = await recordDemo({
+      const { videoPath, durationMs: recordingDurationMs, eventLog } = await recordDemo({
         baseUrl: readyUrl,
         config: effectiveConfig,
       });
       tmpDirs.push(path.dirname(videoPath));
-      console.log(`  Video: ${videoPath}`);
+      console.log(`  Video: ${videoPath} (${(recordingDurationMs / 1000).toFixed(1)}s)`);
       console.log(`  Events: ${eventLog.length} entries\n`);
       if (verbose && eventLog.length > 0) {
         for (const e of eventLog) {
@@ -290,15 +290,18 @@ program
         `  Durations: ${rendered.durations.map((d) => (d / 1000).toFixed(1) + "s").join(", ")}`
       );
 
-      // Re-space segments so narration doesn't overlap
-      const paced = respaceSegments(segments, rendered.durations);
+      // Re-space segments so narration doesn't overlap and fits within the recording
+      const paced = respaceSegments(segments, rendered.durations, {
+        maxDurationMs: recordingDurationMs,
+      });
       console.log(
         `  Paced timeline: ${paced.map((s) => (s.start / 1000).toFixed(1) + "–" + (s.end / 1000).toFixed(1) + "s").join(", ")}\n`
       );
 
-      // Step 6: Mux video + audio
+      // Step 6: Mux video + audio (audio paths aligned to surviving paced segments)
       console.log("6/6 Assembling final video...");
-      muxVideo(videoPath, rendered.paths, paced, outputPath);
+      const pacedAudioPaths = rendered.paths.slice(0, paced.length);
+      muxVideo(videoPath, pacedAudioPaths, paced, outputPath);
       console.log(`\n✅ Done! Output: ${outputPath}\n`);
 
       // Step 7: Post to GitHub (optional)
@@ -322,10 +325,7 @@ program
             console.log("  ⚠ GIF generation failed, posting without preview.");
           }
 
-          const lastPaced = paced[paced.length - 1];
-          const durationSec = lastPaced
-            ? (lastPaced.end + 1500) / 1000
-            : 0;
+          const durationSec = recordingDurationMs / 1000;
           try {
             const result = await postToGitHub({
               token: ghToken,

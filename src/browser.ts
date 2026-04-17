@@ -2,17 +2,46 @@ import { chromium, type BrowserContext, type Page } from "playwright";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+import { execFileSync } from "node:child_process";
+import ffprobeModule from "ffprobe-static";
 import type { EventLogEntry } from "./types.js";
 import type { DemoStep, DiffcastConfig } from "./config.js";
 
+const ffprobeBin: string = (ffprobeModule as { path?: string })?.path || "ffprobe";
+
 export interface RecordingResult {
   videoPath: string;
+  durationMs: number;
   eventLog: EventLogEntry[];
+}
+
+function probeDurationMs(videoPath: string): number | null {
+  try {
+    const out = execFileSync(
+      ffprobeBin,
+      ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", videoPath],
+      { stdio: ["ignore", "pipe", "pipe"] }
+    ).toString().trim();
+    const sec = parseFloat(out);
+    if (!Number.isFinite(sec) || sec <= 0) return null;
+    return Math.round(sec * 1000);
+  } catch {
+    return null;
+  }
 }
 
 export interface RecordOptions {
   baseUrl: string;
   config?: DiffcastConfig | null;
+}
+
+// Vite HMR, Sentry beacons, and analytics keep long-lived connections open —
+// `networkidle` may never fire. Require DOM-ready, treat network-idle as best-effort.
+async function settle(page: Page, idleTimeoutMs = 5000): Promise<void> {
+  await page.waitForLoadState("domcontentloaded").catch(() => {});
+  await page
+    .waitForLoadState("networkidle", { timeout: idleTimeoutMs })
+    .catch(() => {});
 }
 
 async function installInBrowserFrame(
@@ -174,7 +203,7 @@ export async function recordDemo(
   if (config?.auth) {
     log("auth_start");
     await page.goto(config.auth.url);
-    await page.waitForLoadState("networkidle");
+    await settle(page);
     await executeSteps(page, config.auth.steps, log);
     log("auth_complete");
   }
@@ -186,7 +215,7 @@ export async function recordDemo(
     // Config-driven demo
     log("navigate", undefined, baseUrl);
     await page.goto(baseUrl);
-    await page.waitForLoadState("networkidle");
+    await settle(page);
     log("page_loaded", undefined, await page.title());
     await executeSteps(page, steps, log, tolerant);
   } else {
@@ -206,8 +235,14 @@ export async function recordDemo(
     throw new Error(`No video file found in ${tmpDir}`);
   }
 
+  const videoPath = path.join(tmpDir, files[0]);
+  const probed = probeDurationMs(videoPath);
+  const fallbackMs = (eventLog[eventLog.length - 1]?.timestamp ?? 0) + 1000;
+  const durationMs = probed ?? fallbackMs;
+
   return {
-    videoPath: path.join(tmpDir, files[0]),
+    videoPath,
+    durationMs,
     eventLog,
   };
 }
@@ -308,7 +343,7 @@ async function autoExplore(
 ): Promise<void> {
   log("navigate", undefined, baseUrl);
   await page.goto(baseUrl);
-  await page.waitForLoadState("networkidle");
+  await settle(page);
   log("page_loaded", undefined, await page.title());
 
   await page.waitForTimeout(6000);
@@ -340,7 +375,7 @@ async function autoExplore(
     const linkText = await firstLink.textContent();
     log("click", "a:first", linkText?.trim());
     await firstLink.click();
-    await page.waitForLoadState("networkidle");
+    await settle(page);
     await page.waitForTimeout(6000);
     log("navigated", undefined, await page.title());
   }
@@ -354,7 +389,7 @@ async function autoExplore(
   await page.waitForTimeout(3000);
 
   await page.goBack();
-  await page.waitForLoadState("networkidle");
+  await settle(page);
   log("navigated_back", undefined, await page.title());
   await page.waitForTimeout(6000);
 }

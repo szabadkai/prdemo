@@ -24,30 +24,22 @@ export function muxVideo(
     return outputPath;
   }
 
-  // Calculate the total duration needed for all narration
-  const lastSegment = segments[segments.length - 1];
-  const requiredDurationMs = lastSegment.end + 1500; // 1.5s padding after last segment
-  const requiredDurationSec = requiredDurationMs / 1000;
-
-  // Build ffmpeg filter to place each audio segment at its timestamp.
-  // Use tpad to extend the video if narration runs longer.
+  // Place each audio segment at its timestamp. We no longer extend the video
+  // to cover audio — upstream pacing guarantees audio fits within the recording,
+  // and `-shortest` keeps the output bounded by the natural video length.
   const inputs: string[] = ["-i", videoPath];
   const filterParts: string[] = [];
-
-  // Extend video by holding last frame if needed
-  filterParts.push(`[0:v]tpad=stop_mode=clone:stop_duration=${requiredDurationSec}[vpad]`);
 
   for (let i = 0; i < audioPaths.length; i++) {
     inputs.push("-i", audioPaths[i]);
     const delayMs = segments[i].start;
-    // adelay delays audio by N ms on all channels
     filterParts.push(`[${i + 1}:a]adelay=${delayMs}|${delayMs}[a${i}]`);
   }
 
-  // Mix all delayed audio tracks together
   const mixInputs = audioPaths.map((_, i) => `[a${i}]`).join("");
+  // normalize=0 so volume isn't divided by N — our segments don't overlap.
   filterParts.push(
-    `${mixInputs}amix=inputs=${audioPaths.length}:duration=longest[aout]`
+    `${mixInputs}amix=inputs=${audioPaths.length}:duration=longest:normalize=0[aout]`
   );
 
   const filterComplex = filterParts.join(";");
@@ -55,14 +47,13 @@ export function muxVideo(
   const args = [
     ...inputs,
     "-filter_complex", filterComplex,
-    "-map", "[vpad]",
+    "-map", "0:v",
     "-map", "[aout]",
     "-c:v", "libx264",
     "-preset", "fast",
     "-crf", "23",
     "-c:a", "aac",
     "-b:a", "128k",
-    "-shortest",
     "-y", outputPath,
   ];
 
